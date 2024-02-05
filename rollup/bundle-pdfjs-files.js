@@ -53,7 +53,7 @@ const _baseCode = _pdfjsFiles.reduce(
 fs.writeFileSync(__dirname + '/../pdfjs-code.js',
   `
   ${'import nodeUtil from \'util\';'}
-  ${'const PDFJS = {};'}
+  ${'export const PDFJS = {};'}
   ${'const globalScope = { console };'}
   ${_baseCode}
   `,

@@ -1682,8 +1682,9 @@ class PTIXmlParser {
 	}
 }
 
-const PDFJS$1 = {};
-  const globalScope$1 = { console };
+const PDFJS = {};
+var Image = PDFImage
+  const globalScope = { console };
   /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 /* Copyright 2012 Mozilla Foundation
@@ -1730,14 +1731,14 @@ var TextRenderingMode = {
 // The global PDFJS object exposes the API
 // In production, it will be declared outside a global wrapper
 // In development, it will be declared here
-if (!globalScope$1.PDFJS) {
-  globalScope$1.PDFJS = {};
+if (!globalScope.PDFJS) {
+  globalScope.PDFJS = {};
 }
 
-globalScope$1.PDFJS.pdfBug = false;
+globalScope.PDFJS.pdfBug = false;
 
 // All the possible operations for an operator list.
-var OPS = PDFJS$1.OPS = {
+var OPS = PDFJS.OPS = {
   // Intentionally start from 1 so it is easy to spot bad operators that will be
   // 0's.
   dependency: 1,
@@ -1831,14 +1832,14 @@ var OPS = PDFJS$1.OPS = {
 
 //MQZ.Mar.22 Disabled Operators (to prevent image painting & annotation default appearance)
 //paintJpegXObject, paintImageMaskXObject, paintImageMaskXObjectGroup, paintImageXObject, paintInlineImageXObject, paintInlineImageXObjectGroup
-var NO_OPS = PDFJS$1.NO_OPS = [82, 83, 84, 85, 86, 87];
-var NO_OPS_RANGE = PDFJS$1.NO_OPS_RANGE = [78, 79, 80, 81]; //range pairs, all ops with each pair will be skipped. !important!
+var NO_OPS = PDFJS.NO_OPS = [82, 83, 84, 85, 86, 87];
+var NO_OPS_RANGE = PDFJS.NO_OPS_RANGE = [78, 79, 80, 81]; //range pairs, all ops with each pair will be skipped. !important!
 
 // Use only for debugging purposes. This should not be used in any code that is
 // in mozilla master.
 var log = (function() {
-  if ('console' in globalScope$1 && 'log' in globalScope$1['console']) {
-    return globalScope$1['console']['log'].bind(globalScope$1['console']);
+  if ('console' in globalScope && 'log' in globalScope['console']) {
+    return globalScope['console']['log'].bind(globalScope['console']);
   } else {
     return function nop() {
     };
@@ -1851,7 +1852,7 @@ var log = (function() {
 function info(msg) {
   if (verbosity >= INFOS) {
     log('Info: ' + msg);
-    PDFJS$1.LogManager.notify('info', msg);
+    PDFJS.LogManager.notify('info', msg);
   }
 }
 
@@ -1859,7 +1860,7 @@ function info(msg) {
 function warn(msg) {
   if (verbosity >= WARNINGS) {
     log('Warning: ' + msg);
-    PDFJS$1.LogManager.notify('warn', msg);
+    PDFJS.LogManager.notify('warn', msg);
   }
 }
 
@@ -1943,7 +1944,7 @@ function isValidUrl(url, allowRelative) {
       return false;
   }
 }
-PDFJS$1.isValidUrl = isValidUrl;
+PDFJS.isValidUrl = isValidUrl;
 
 // In a well-formed PDF, |cond| holds.  If it doesn't, subsequent
 // behavior is undefined.
@@ -1952,7 +1953,7 @@ function assertWellFormed(cond, msg) {
     error(msg);
 }
 
-var LogManager = PDFJS$1.LogManager = (function LogManagerClosure() {
+var LogManager = PDFJS.LogManager = (function LogManagerClosure() {
   var loggers = [];
   return {
     addLogger: function logManager_addLogger(logger) {
@@ -1976,7 +1977,7 @@ function shadow(obj, prop, value) {
   return value;
 }
 
-var PasswordResponses = PDFJS$1.PasswordResponses = {
+var PasswordResponses = PDFJS.PasswordResponses = {
   NEED_PASSWORD: 1,
   INCORRECT_PASSWORD: 2
 };
@@ -2088,7 +2089,7 @@ function stringToBytes(str) {
 
 var IDENTITY_MATRIX = [1, 0, 0, 1, 0, 0];
 
-var Util = PDFJS$1.Util = (function UtilClosure() {
+var Util = PDFJS.Util = (function UtilClosure() {
   function Util() {}
 
   Util.makeCssRgb = function Util_makeCssRgb(rgb) {
@@ -2290,7 +2291,7 @@ var Util = PDFJS$1.Util = (function UtilClosure() {
   return Util;
 })();
 
-var PageViewport = PDFJS$1.PageViewport = (function PageViewportClosure() {
+var PageViewport = PDFJS.PageViewport = (function PageViewportClosure() {
   function PageViewport(viewBox, scale, rotation, offsetX, offsetY, dontFlip) {
     this.viewBox = viewBox;
     this.scale = scale;
@@ -2496,7 +2497,7 @@ function isPDFFunction(v) {
  * Based off of the work in:
  * https://bugzilla.mozilla.org/show_bug.cgi?id=810490
  */
-var Promise$1 = PDFJS$1.Promise = (function PromiseClosure() {
+var Promise$1 = PDFJS.Promise = (function PromiseClosure() {
   var STATUS_PENDING = 0;
   var STATUS_RESOLVED = 1;
   var STATUS_REJECTED = 2;
@@ -2774,14 +2775,14 @@ var StatTimer = (function StatTimerClosure() {
   return StatTimer;
 })();
 
-PDFJS$1.createBlob = function createBlob(data, contentType) {
+PDFJS.createBlob = function createBlob(data, contentType) {
 	return new Blob([data], { type: contentType });
 };
 
-PDFJS$1.createObjectURL = (function createObjectURLClosure() {
+PDFJS.createObjectURL = (function createObjectURLClosure() {
   if (typeof URL !== 'undefined' && URL.createObjectURL) {
     return function createObjectURL(data, contentType) {
-      var blob = PDFJS$1.createBlob(data, contentType);
+      var blob = PDFJS.createBlob(data, contentType);
       return URL.createObjectURL(blob);
     };
   }
@@ -2818,9 +2819,9 @@ function MessageHandler(name, comObj) {
   }];
   // If there's no console available, console_error in the
   // action handler will do nothing.
-  if ('console' in globalScope$1) {
+  if ('console' in globalScope) {
     ah['console_error'] = [function ahConsoleError(data) {
-      globalScope$1['console'].error.apply(null, data);
+      globalScope['console'].error.apply(null, data);
     }];
   } else {
     ah['console_error'] = [function ahConsoleError(data) {
@@ -5446,7 +5447,7 @@ var Annotation = (function AnnotationClosure() {
 
   return Annotation;
 })();
-PDFJS$1.Annotation = Annotation;
+PDFJS.Annotation = Annotation;
 
 
 var WidgetAnnotation = (function WidgetAnnotationClosure() {
@@ -5708,7 +5709,7 @@ var TextAnnotation = (function TextAnnotationClosure() {
       var image = document.createElement('img');
       image.style.height = container.style.height;
       var iconName = item.name;
-      image.src = PDFJS$1.imageResourcesPath + 'annotation-' +
+      image.src = PDFJS.imageResourcesPath + 'annotation-' +
         iconName.toLowerCase() + '.svg';
       image.alt = '[{{type}} Annotation]';
       image.dataset.l10nId = 'text_annotation_type';
@@ -8764,7 +8765,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       var w = dict.get('Width', 'W');
       var h = dict.get('Height', 'H');
 
-      if (PDFJS$1.maxImageSize !== -1 && w * h > PDFJS$1.maxImageSize) {
+      if (PDFJS.maxImageSize !== -1 && w * h > PDFJS.maxImageSize) {
         warn('Image exceeded maximum allowed size and was removed.');
         return;
       }
@@ -8880,7 +8881,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       var glyphs = font.charsToGlyphs(chars);
       var isAddToPathSet = !!(this.state.textRenderingMode &
                               TextRenderingMode.ADD_TO_PATH_FLAG);
-      if (font.data && (isAddToPathSet || PDFJS$1.disableFontFace)) {
+      if (font.data && (isAddToPathSet || PDFJS.disableFontFace)) {
         for (var i = 0; i < glyphs.length; i++) {
           if (glyphs[i] === null) {
             continue;
@@ -9432,7 +9433,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
           } // switch
 
           if (chunk !== '') {
-            var bidiText = PDFJS$1.bidi(chunk, -1, font.vertical);
+            var bidiText = PDFJS.bidi(chunk, -1, font.vertical);
             var renderParams = textState.calcRenderParams();
             bidiText.x = renderParams.renderMatrix[4] - (textState.fontSize *
                            renderParams.vScale * Math.sin(renderParams.angle));
@@ -27273,7 +27274,7 @@ var JpegStream = (function JpegStreamClosure() {
     }
   };
   JpegStream.prototype.getIR = function JpegStream_getIR() {
-    return PDFJS$1.createObjectURL(this.bytes, 'image/jpeg');
+    return PDFJS.createObjectURL(this.bytes, 'image/jpeg');
   };
   /**
    * Checks if the image can be decoded and displayed by the browser without any
@@ -28787,11 +28788,11 @@ var NullStream = (function NullStreamClosure() {
 'use strict';
 
 //MQZ. Oct.11.2012. Add Worker's postMessage API
-globalScope$1.postMessage = function WorkerTransport_postMessage(obj) {
+globalScope.postMessage = function WorkerTransport_postMessage(obj) {
 //  log("Inside globalScope.postMessage:" + JSON.stringify(obj));
 };
 
-var WorkerMessageHandler = PDFJS$1.WorkerMessageHandler = {
+var WorkerMessageHandler = PDFJS.WorkerMessageHandler = {
   setup: function wphSetup(handler) {
     var pdfManager;
 
@@ -28996,9 +28997,9 @@ var WorkerMessageHandler = PDFJS$1.WorkerMessageHandler = {
         }
       };
 
-      PDFJS$1.maxImageSize = data.maxImageSize === undefined ?
+      PDFJS.maxImageSize = data.maxImageSize === undefined ?
                            -1 : data.maxImageSize;
-      PDFJS$1.disableFontFace = data.disableFontFace;
+      PDFJS.disableFontFace = data.disableFontFace;
 
       getPdfManager(data).then(function pdfManagerReady() {
         loadDocument(false).then(onSuccess, function loadFailure(ex) {
@@ -29166,7 +29167,7 @@ var consoleTimer = {};
 var workerConsole = {
   log: function log() {
     var args = Array.prototype.slice.call(arguments);
-    globalScope$1.postMessage({
+    globalScope.postMessage({
       action: 'console_log',
       data: args
     });
@@ -29174,7 +29175,7 @@ var workerConsole = {
 
   error: function error() {
     var args = Array.prototype.slice.call(arguments);
-    globalScope$1.postMessage({
+    globalScope.postMessage({
       action: 'console_error',
       data: args
     });
@@ -29196,13 +29197,13 @@ var workerConsole = {
 
 // Worker thread?
 if (typeof window === 'undefined') {
-  globalScope$1.console = workerConsole;
+  globalScope.console = workerConsole;
 
   // Add a logger so we can pass warnings on to the main thread, errors will
   // throw an exception which will be forwarded on automatically.
-  PDFJS$1.LogManager.addLogger({
+  PDFJS.LogManager.addLogger({
     warn: function(msg) {
-      globalScope$1.postMessage({
+      globalScope.postMessage({
         action: '_warn',
         data: msg
       });
@@ -29485,7 +29486,7 @@ var JpxImage = (function JpxImageClosure() {
                   cod.terminationOnEachCodingPass ||
                   cod.verticalyStripe || cod.predictableTermination)
                 throw 'Unsupported COD options: ' +
-                  globalScope$1.JSON.stringify(cod);
+                  globalScope.JSON.stringify(cod);
 
               if (context.mainHeader)
                 context.COD = cod;
@@ -32230,7 +32231,7 @@ var Jbig2Image = (function Jbig2ImageClosure() {
 
 'use strict';
 
-var bidi = PDFJS$1.bidi = (function bidiClosure() {
+var bidi = PDFJS.bidi = (function bidiClosure() {
   // Character types for symbols from 0000 to 00FF.
   var baseTypes = [
     'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'S', 'B', 'S', 'WS',
@@ -43709,7 +43710,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
 
 'use strict';
 
-PDFJS$1.disableFontFace = false;
+PDFJS.disableFontFace = false;
 
 var FontLoader = {
   insertRule: function fontLoaderInsertRule(rule) {
@@ -43978,7 +43979,7 @@ var FontFace = (function FontFaceClosure() {
       if (!this.data)
         return null;
 
-      if (PDFJS$1.disableFontFace) {
+      if (PDFJS.disableFontFace) {
         this.disableFontFace = true;
         return null;
       }
@@ -43993,9 +43994,9 @@ var FontFace = (function FontFaceClosure() {
 
       FontLoader.insertRule(rule);
 
-      if (PDFJS$1.pdfBug && 'FontInspector' in globalScope$1 &&
-          globalScope$1['FontInspector'].enabled)
-        globalScope$1['FontInspector'].fontAdded(this, url);
+      if (PDFJS.pdfBug && 'FontInspector' in globalScope &&
+          globalScope['FontInspector'].enabled)
+        globalScope['FontInspector'].fontAdded(this, url);
 
       return rule;
     },
@@ -44030,7 +44031,7 @@ var FontFace = (function FontFaceClosure() {
 
 'use strict';
 
-var Metadata = (PDFJS$1.Metadata = (function MetadataClosure() {
+var Metadata = (PDFJS.Metadata = (function MetadataClosure() {
    function fixMetadata(meta) {
       return meta.replace(/>\\376\\377([^<]+)/g, function (all, codes) {
          var bytes = codes.replace(
@@ -44150,7 +44151,7 @@ var Metadata = (PDFJS$1.Metadata = (function MetadataClosure() {
  * above this value will not be drawn. Use -1 for no limit.
  * @var {Number}
  */
-PDFJS$1.maxImageSize = PDFJS$1.maxImageSize === undefined ? -1 : PDFJS$1.maxImageSize;
+PDFJS.maxImageSize = PDFJS.maxImageSize === undefined ? -1 : PDFJS.maxImageSize;
 
 /**
  * By default fonts are converted to OpenType fonts and loaded via font face
@@ -44158,16 +44159,16 @@ PDFJS$1.maxImageSize = PDFJS$1.maxImageSize === undefined ? -1 : PDFJS$1.maxImag
  * that constructs the glyphs with primitive path commands.
  * @var {Boolean}
  */
-PDFJS$1.disableFontFace = PDFJS$1.disableFontFace === undefined ?
-                        false : PDFJS$1.disableFontFace;
+PDFJS.disableFontFace = PDFJS.disableFontFace === undefined ?
+                        false : PDFJS.disableFontFace;
 
 /**
  * Path for image resources, mainly for annotation icons. Include trailing
  * slash.
  * @var {String}
  */
-PDFJS$1.imageResourcesPath = PDFJS$1.imageResourcesPath === undefined ?
-                           '' : PDFJS$1.imageResourcesPath;
+PDFJS.imageResourcesPath = PDFJS.imageResourcesPath === undefined ?
+                           '' : PDFJS.imageResourcesPath;
 
 /**
  * Disable the web worker and run all code on the main thread. This will happen
@@ -44175,8 +44176,8 @@ PDFJS$1.imageResourcesPath = PDFJS$1.imageResourcesPath === undefined ?
  * to workers.
  * @var {Boolean}
  */
-PDFJS$1.disableWorker = PDFJS$1.disableWorker === undefined ?
-                      false : PDFJS$1.disableWorker;
+PDFJS.disableWorker = PDFJS.disableWorker === undefined ?
+                      false : PDFJS.disableWorker;
 
 /**
  * Path and filename of the worker file. Required when the worker is enabled in
@@ -44184,7 +44185,7 @@ PDFJS$1.disableWorker = PDFJS$1.disableWorker === undefined ?
  * loaded based on the location of the pdf.js file.
  * @var {String}
  */
-PDFJS$1.workerSrc = PDFJS$1.workerSrc === undefined ? null : PDFJS$1.workerSrc;
+PDFJS.workerSrc = PDFJS.workerSrc === undefined ? null : PDFJS.workerSrc;
 
 /**
  * Disable range request loading of PDF files. When enabled and if the server
@@ -44192,8 +44193,8 @@ PDFJS$1.workerSrc = PDFJS$1.workerSrc === undefined ? null : PDFJS$1.workerSrc;
  * Enabled (false) by default.
  * @var {Boolean}
  */
-PDFJS$1.disableRange = PDFJS$1.disableRange === undefined ?
-                     false : PDFJS$1.disableRange;
+PDFJS.disableRange = PDFJS.disableRange === undefined ?
+                     false : PDFJS.disableRange;
 
 /**
  * Disable pre-fetching of PDF file data. When range requests are enabled PDF.js
@@ -44201,21 +44202,21 @@ PDFJS$1.disableRange = PDFJS$1.disableRange === undefined ?
  * the current page. This default behavior can be disabled.
  * @var {Boolean}
  */
-PDFJS$1.disableAutoFetch = PDFJS$1.disableAutoFetch === undefined ?
-                         false : PDFJS$1.disableAutoFetch;
+PDFJS.disableAutoFetch = PDFJS.disableAutoFetch === undefined ?
+                         false : PDFJS.disableAutoFetch;
 
 /**
  * Enables special hooks for debugging PDF.js.
  * @var {Boolean}
  */
-PDFJS$1.pdfBug = PDFJS$1.pdfBug === undefined ? false : PDFJS$1.pdfBug;
+PDFJS.pdfBug = PDFJS.pdfBug === undefined ? false : PDFJS.pdfBug;
 
 /**
  * Enables transfer usage in postMessage for ArrayBuffers.
  * @var {boolean}
  */
-PDFJS$1.postMessageTransfers = PDFJS$1.postMessageTransfers === undefined ?
-                             true : PDFJS$1.postMessageTransfers;
+PDFJS.postMessageTransfers = PDFJS.postMessageTransfers === undefined ?
+                             true : PDFJS.postMessageTransfers;
 /**
  * This is the main entry point for loading a PDF and interacting with it.
  * NOTE: If a URL is used to fetch the PDF data a standard XMLHttpRequest(XHR)
@@ -44244,7 +44245,7 @@ PDFJS$1.postMessageTransfers = PDFJS$1.postMessageTransfers === undefined ?
  *
  * @return {Promise} A promise that is resolved with {PDFDocumentProxy} object.
  */
-PDFJS$1.getDocument = function getDocument(source,
+PDFJS.getDocument = function getDocument(source,
                                          pdfDataRangeTransport,
                                          passwordCallback,
                                          progressCallback) {
@@ -44272,8 +44273,8 @@ PDFJS$1.getDocument = function getDocument(source,
     params[key] = source[key];
   }
 
-  workerInitializedPromise = new PDFJS$1.Promise();
-  workerReadyPromise = new PDFJS$1.Promise();
+  workerInitializedPromise = new PDFJS.Promise();
+  workerReadyPromise = new PDFJS.Promise();
   transport = new WorkerTransport(workerInitializedPromise,
       workerReadyPromise, pdfDataRangeTransport, progressCallback);
   workerInitializedPromise.then(function transportInitialized() {
@@ -44341,7 +44342,7 @@ var PDFDocumentProxy = (function PDFDocumentProxyClosure() {
      * JavaScript strings in the name tree.
      */
     getJavaScript: function PDFDocumentProxy_getDestinations() {
-      var promise = new PDFJS$1.Promise();
+      var promise = new PDFJS.Promise();
       var js = this.pdfInfo.javaScript;
       promise.resolve(js);
       return promise;
@@ -44362,7 +44363,7 @@ var PDFDocumentProxy = (function PDFDocumentProxyClosure() {
      * ].
      */
     getOutline: function PDFDocumentProxy_getOutline() {
-      var promise = new PDFJS$1.Promise();
+      var promise = new PDFJS.Promise();
       var outline = this.pdfInfo.outline;
       promise.resolve(outline);
       return promise;
@@ -44374,17 +44375,17 @@ var PDFDocumentProxy = (function PDFDocumentProxyClosure() {
      * {Metadata} object with information from the metadata section of the PDF.
      */
     getMetadata: function PDFDocumentProxy_getMetadata() {
-      var promise = new PDFJS$1.Promise();
+      var promise = new PDFJS.Promise();
       var info = this.pdfInfo.info;
       var metadata = this.pdfInfo.metadata;
       promise.resolve({
         info: info,
-        metadata: metadata ? new PDFJS$1.Metadata(metadata) : null
+        metadata: metadata ? new PDFJS.Metadata(metadata) : null
       });
       return promise;
     },
     isEncrypted: function PDFDocumentProxy_isEncrypted() {
-      var promise = new PDFJS$1.Promise();
+      var promise = new PDFJS.Promise();
       promise.resolve(this.pdfInfo.encrypted);
       return promise;
     },
@@ -44393,7 +44394,7 @@ var PDFDocumentProxy = (function PDFDocumentProxyClosure() {
      * the raw data from the PDF.
      */
     getData: function PDFDocumentProxy_getData() {
-      var promise = new PDFJS$1.Promise();
+      var promise = new PDFJS.Promise();
       this.transport.getData(promise);
       return promise;
     },
@@ -44419,7 +44420,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
     this.pageInfo = pageInfo;
     this.transport = transport;
     this.stats = new StatTimer();
-    this.stats.enabled = !!globalScope$1.PDFJS.enableStats;
+    this.stats.enabled = !!globalScope.PDFJS.enableStats;
     this.commonObjs = transport.commonObjs;
     this.objs = new PDFObjects();
     this.receivingOperatorList  = false;
@@ -44464,7 +44465,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
     getViewport: function PDFPageProxy_getViewport(scale, rotate) {
       if (arguments.length < 2)
         rotate = this.rotate;
-      return new PDFJS$1.PageViewport(this.view, scale, rotate, 0, 0);
+      return new PDFJS.PageViewport(this.view, scale, rotate, 0, 0);
     },
     /**
      * @return {Promise} A promise that is resolved with an {array} of the
@@ -44474,7 +44475,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
       if (this.annotationsPromise)
         return this.annotationsPromise;
 
-      var promise = new PDFJS$1.Promise();
+      var promise = new PDFJS.Promise();
       this.annotationsPromise = promise;
       this.transport.getAnnotations(this.pageInfo.pageIndex);
       return promise;
@@ -44575,7 +44576,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
      * content from the page.
      */
     getTextContent: function PDFPageProxy_getTextContent() {
-      var promise = new PDFJS$1.Promise();
+      var promise = new PDFJS.Promise();
       this.transport.messageHandler.send('GetTextContent', {
           pageIndex: this.pageNumber - 1
         },
@@ -44589,7 +44590,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
      * Stub for future feature.
      */
     getOperationList: function PDFPageProxy_getOperationList() {
-      var promise = new PDFJS$1.Promise();
+      var promise = new PDFJS.Promise();
       var operationList = { // not implemented
         dependencyFontsID: null,
         operatorList: null
@@ -44673,8 +44674,8 @@ var WorkerTransport = (function WorkerTransportClosure() {
     // all requirements to run parts of pdf.js in a web worker.
     // Right now, the requirement is, that an Uint8Array is still an Uint8Array
     // as it arrives on the worker. Chrome added this with version 15.
-    if (!globalScope$1.PDFJS.disableWorker && typeof Worker !== 'undefined') {
-      var workerSrc = PDFJS$1.workerSrc;
+    if (!globalScope.PDFJS.disableWorker && typeof Worker !== 'undefined') {
+      var workerSrc = PDFJS.workerSrc;
       if (!workerSrc) {
         error('No PDFJS.workerSrc specified');
       }
@@ -44691,12 +44692,12 @@ var WorkerTransport = (function WorkerTransportClosure() {
           if (supportTypedArray) {
             this.worker = worker;
             if (!data.supportTransfers) {
-              PDFJS$1.postMessageTransfers = false;
+              PDFJS.postMessageTransfers = false;
             }
             this.setupMessageHandler(messageHandler);
             workerInitializedPromise.resolve();
           } else {
-            globalScope$1.PDFJS.disableWorker = true;
+            globalScope.PDFJS.disableWorker = true;
             this.loadFakeWorkerFiles().then(function() {
               this.setupFakeWorker();
               workerInitializedPromise.resolve();
@@ -44704,7 +44705,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
           }
         }.bind(this));
 
-        var testObj = new Uint8Array([PDFJS$1.postMessageTransfers ? 255 : 0]);
+        var testObj = new Uint8Array([PDFJS.postMessageTransfers ? 255 : 0]);
         // Some versions of Opera throw a DATA_CLONE_ERR on serializing the
         // typed array. Also, checking if we can use transfers.
         try {
@@ -44721,7 +44722,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
     }
     // Either workers are disabled, not supported or have thrown an exception.
     // Thus, we fallback to a faked worker.
-    globalScope$1.PDFJS.disableWorker = true;
+    globalScope.PDFJS.disableWorker = true;
     this.loadFakeWorkerFiles().then(function() {
       this.setupFakeWorker();
       workerInitializedPromise.resolve();
@@ -44740,18 +44741,18 @@ var WorkerTransport = (function WorkerTransportClosure() {
     },
 
     loadFakeWorkerFiles: function WorkerTransport_loadFakeWorkerFiles() {
-      if (!PDFJS$1.fakeWorkerFilesLoadedPromise) {
-        PDFJS$1.fakeWorkerFilesLoadedPromise = new Promise$1();
+      if (!PDFJS.fakeWorkerFilesLoadedPromise) {
+        PDFJS.fakeWorkerFilesLoadedPromise = new Promise$1();
         // In the developer build load worker_loader which in turn loads all the
         // other files and resolves the promise. In production only the
         // pdf.worker.js file is needed.
 //#if !PRODUCTION
 //MQZ Dec.03.2013 Disable loadScript
-      if (globalScope$1.PDFJS.disableWorker) {
-          PDFJS$1.fakeWorkerFilesLoadedPromise.resolve();
+      if (globalScope.PDFJS.disableWorker) {
+          PDFJS.fakeWorkerFilesLoadedPromise.resolve();
       }
       else {
-        Util.loadScript(PDFJS$1.workerSrc);
+        Util.loadScript(PDFJS.workerSrc);
       }
 //#else
 //      Util.loadScript(PDFJS.workerSrc, function() {
@@ -44759,7 +44760,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
 //      });
 //#endif
       }
-      return PDFJS$1.fakeWorkerFilesLoadedPromise;
+      return PDFJS.fakeWorkerFilesLoadedPromise;
     },
 
     setupFakeWorker: function WorkerTransport_setupFakeWorker() {
@@ -44777,7 +44778,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
 
       // If the main thread is our worker, setup the handling for the messages
       // the main thread sends to it self.
-      PDFJS$1.WorkerMessageHandler.setup(messageHandler);
+      PDFJS.WorkerMessageHandler.setup(messageHandler);
     },
 
     setupMessageHandler:
@@ -44996,13 +44997,13 @@ var WorkerTransport = (function WorkerTransportClosure() {
     },
 
     fetchDocument: function WorkerTransport_fetchDocument(source) {
-      source.disableAutoFetch = PDFJS$1.disableAutoFetch;
+      source.disableAutoFetch = PDFJS.disableAutoFetch;
       source.chunkedViewerLoading = !!this.pdfDataRangeTransport;
       this.messageHandler.send('GetDocRequest', {
         source: source,
-        disableRange: PDFJS$1.disableRange,
-        maxImageSize: PDFJS$1.maxImageSize,
-        disableFontFace: PDFJS$1.disableFontFace
+        disableRange: PDFJS.disableRange,
+        maxImageSize: PDFJS.maxImageSize,
+        disableFontFace: PDFJS.disableFontFace
       });
     },
 
@@ -45013,7 +45014,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
     },
 
     dataLoaded: function WorkerTransport_dataLoaded() {
-      var promise = new PDFJS$1.Promise();
+      var promise = new PDFJS.Promise();
       this.messageHandler.send('DataLoaded', null, function(args) {
         promise.resolve(args);
       });
@@ -45024,14 +45025,14 @@ var WorkerTransport = (function WorkerTransportClosure() {
       var pageIndex = pageNumber - 1;
       if (pageIndex in this.pagePromises)
         return this.pagePromises[pageIndex];
-      var promise = new PDFJS$1.Promise('Page ' + pageNumber);
+      var promise = new PDFJS.Promise('Page ' + pageNumber);
       this.pagePromises[pageIndex] = promise;
       this.messageHandler.send('GetPageRequest', { pageIndex: pageIndex });
       return promise;
     },
 
     getPageIndex: function WorkerTransport_getPageIndexByRef(ref) {
-      var promise = new PDFJS$1.Promise();
+      var promise = new PDFJS.Promise();
       this.messageHandler.send('GetPageIndex', { ref: ref },
         function (pageIndex) {
           promise.resolve(pageIndex);
@@ -45046,7 +45047,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
     },
 
     getDestinations: function WorkerTransport_getDestinations() {
-      var promise = new PDFJS$1.Promise();
+      var promise = new PDFJS.Promise();
       this.messageHandler.send('GetDestinations', null,
         function transportDestinations(destinations) {
           promise.resolve(destinations);
@@ -45225,9 +45226,9 @@ var InternalRenderTask = (function InternalRenderTaskClosure() {
       if (this.cancelled) {
         return;
       }
-      if (PDFJS$1.pdfBug && 'StepperManager' in globalScope$1 &&
-          globalScope$1.StepperManager.enabled) {
-        this.stepper = globalScope$1.StepperManager.create(this.pageNumber - 1);
+      if (PDFJS.pdfBug && 'StepperManager' in globalScope &&
+          globalScope.StepperManager.enabled) {
+        this.stepper = globalScope.StepperManager.create(this.pageNumber - 1);
         this.stepper.init(this.operatorList);
         this.stepper.nextBreakPoint = this.stepper.getNextBreakPoint();
       }
@@ -45307,10 +45308,6 @@ var InternalRenderTask = (function InternalRenderTaskClosure() {
 function createScratchCanvas$1(width, height) {
    return new CanvasRenderingContext2D_({}, width, height);
 }
-
-const PDFJS = {};
-var Image = PDFImage
-const globalScope = { console };
 
 // eval(_PDFJS_CODE);
 
