@@ -46,9 +46,10 @@
       "parse-e": "node --trace-deprecation --trace-warnings pdf2json.js -f ./test/pdf/misc/i43_encrypted.pdf -o ./test/target/misc",
       "parse-e2": "node --trace-deprecation --trace-warnings pdf2json.js -f ./test/pdf/misc/i243_problem_file_anon.pdf -o ./test/target/misc",
       "parse-e3": "node --trace-deprecation --trace-warnings pdf2json.js -f ./test/pdf/misc/i200_test.pdf -o ./test/target/misc",
+      "build:bundle-pdfjs-files": "node rollup/bundle-pdfjs-files.js",
       "build:rollup": "rollup -c ./rollup.config.js",
       "build:add-destructured-imports-to-cjs": "node rollup/addDestructedImports.js",
-      "build": "npm run build:rollup && npm run build:add-destructured-imports-to-cjs"
+      "build": "npm run build:bundle-pdfjs-files && npm run build:rollup && npm run build:add-destructured-imports-to-cjs"
    },
    "engines": {
       "node": ">=18.12.1",
