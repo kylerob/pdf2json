@@ -11,12 +11,6 @@ var DOMParser = xmldom.DOMParser;
 var stream = require('stream');
 
 var _documentCurrentScript = typeof document !== 'undefined' ? document.currentScript : null;
-const __filename$1 = url.fileURLToPath((typeof document === 'undefined' ? require('u' + 'rl').pathToFileURL(__filename).href : (_documentCurrentScript && _documentCurrentScript.src || new URL('pdfparser.cjs', document.baseURI).href)));
-const __dirname$1 = path.dirname(__filename$1);
-
-const pkInfo = JSON.parse(fs.readFileSync(`${__dirname$1}/package.json`, 'utf8'));
-const _PARSER_SIG = `${pkInfo.name}@${pkInfo.version} [${pkInfo.homepage}]`;
-
 const kColors = [
     '#000000',		// 0
     '#ffffff',		// 1
@@ -205,68 +199,6 @@ class PDFUnit {
         let min = date.slice(10, 12) || '00';
         let sec = date.slice(12, 14) || '00';
         return yr + '-' + mth + '-' + day + 'T' + hr + ':' + min + ':' + sec + tz;
-    }
-}
-
-class PDFLine {
-    constructor(x1, y1, x2, y2, lineWidth, color, dashed) {
-        this.x1 = x1;
-        this.y1 = y1;
-        this.x2 = x2;
-        this.y2 = y2;
-        this.lineWidth = lineWidth || 1.0;
-        this.color = color;
-        this.dashed = dashed;
-    }
-
-    #setStartPoint(oneLine, x, y) {
-        oneLine.x = PDFUnit.toFormX(x);
-        oneLine.y = PDFUnit.toFormY(y);
-    }
-
-    processLine(targetData) {
-        const xDelta = Math.abs(this.x2 - this.x1);
-        const yDelta = Math.abs(this.y2 - this.y1);
-        const minDelta = this.lineWidth;
-
-        let oneLine = {x:0, y:0, w: PDFUnit.toFixedFloat(this.lineWidth), l:0};
-
-        //MQZ Aug.28.2013, adding color support, using color dictionary and default to black
-        const clrId = PDFUnit.findColorIndex(this.color);
-        const colorObj = (clrId > 0 && clrId < PDFUnit.colorCount()) ? {clr: clrId} : {oc: this.color};
-        oneLine = {...oneLine, ...colorObj};
-
-        //MQZ Aug.29 dashed line support
-        if (this.dashed) {
-            oneLine = oneLine = {...oneLine, dsh: 1};
-        }
-
-        if ((yDelta < this.lineWidth) && (xDelta > minDelta)) { //HLine
-            if (this.lineWidth < 4 && (xDelta / this.lineWidth < 4)) {
-                nodeUtil.p2jinfo("Skipped: short thick HLine: lineWidth = " + this.lineWidth + ", xDelta = " + xDelta);
-                return; //skip short thick lines, like PA SPP lines behinds checkbox
-            }
-
-            oneLine.l = PDFUnit.toFormX(xDelta);
-            if (this.x1 > this.x2)
-                this.#setStartPoint(oneLine, this.x2, this.y2);
-            else
-                this.#setStartPoint(oneLine, this.x1, this.y1);
-            targetData.HLines.push(oneLine);
-        }
-        else if ((xDelta < this.lineWidth) && (yDelta > minDelta)) {//VLine
-            if (this.lineWidth < 4 && (yDelta / this.lineWidth < 4)) {
-                nodeUtil.p2jinfo("Skipped: short thick VLine: lineWidth = " + this.lineWidth + ", yDelta = " + yDelta);
-                return; //skip short think lines, like PA SPP lines behinds checkbox
-            }
-
-            oneLine.l = PDFUnit.toFormY(yDelta);
-            if (this.y1 > this.y2)
-                this.#setStartPoint(oneLine, this.x2, this.y2);
-            else
-                this.#setStartPoint(oneLine, this.x1, this.y1);
-            targetData.VLines.push(oneLine);
-        }
     }
 }
 
@@ -688,6 +620,68 @@ class PDFFont {
    }
 }
 
+class PDFLine {
+    constructor(x1, y1, x2, y2, lineWidth, color, dashed) {
+        this.x1 = x1;
+        this.y1 = y1;
+        this.x2 = x2;
+        this.y2 = y2;
+        this.lineWidth = lineWidth || 1.0;
+        this.color = color;
+        this.dashed = dashed;
+    }
+
+    #setStartPoint(oneLine, x, y) {
+        oneLine.x = PDFUnit.toFormX(x);
+        oneLine.y = PDFUnit.toFormY(y);
+    }
+
+    processLine(targetData) {
+        const xDelta = Math.abs(this.x2 - this.x1);
+        const yDelta = Math.abs(this.y2 - this.y1);
+        const minDelta = this.lineWidth;
+
+        let oneLine = {x:0, y:0, w: PDFUnit.toFixedFloat(this.lineWidth), l:0};
+
+        //MQZ Aug.28.2013, adding color support, using color dictionary and default to black
+        const clrId = PDFUnit.findColorIndex(this.color);
+        const colorObj = (clrId > 0 && clrId < PDFUnit.colorCount()) ? {clr: clrId} : {oc: this.color};
+        oneLine = {...oneLine, ...colorObj};
+
+        //MQZ Aug.29 dashed line support
+        if (this.dashed) {
+            oneLine = oneLine = {...oneLine, dsh: 1};
+        }
+
+        if ((yDelta < this.lineWidth) && (xDelta > minDelta)) { //HLine
+            if (this.lineWidth < 4 && (xDelta / this.lineWidth < 4)) {
+                nodeUtil.p2jinfo("Skipped: short thick HLine: lineWidth = " + this.lineWidth + ", xDelta = " + xDelta);
+                return; //skip short thick lines, like PA SPP lines behinds checkbox
+            }
+
+            oneLine.l = PDFUnit.toFormX(xDelta);
+            if (this.x1 > this.x2)
+                this.#setStartPoint(oneLine, this.x2, this.y2);
+            else
+                this.#setStartPoint(oneLine, this.x1, this.y1);
+            targetData.HLines.push(oneLine);
+        }
+        else if ((xDelta < this.lineWidth) && (yDelta > minDelta)) {//VLine
+            if (this.lineWidth < 4 && (yDelta / this.lineWidth < 4)) {
+                nodeUtil.p2jinfo("Skipped: short thick VLine: lineWidth = " + this.lineWidth + ", yDelta = " + yDelta);
+                return; //skip short think lines, like PA SPP lines behinds checkbox
+            }
+
+            oneLine.l = PDFUnit.toFormY(yDelta);
+            if (this.y1 > this.y2)
+                this.#setStartPoint(oneLine, this.x2, this.y2);
+            else
+                this.#setStartPoint(oneLine, this.x1, this.y1);
+            targetData.VLines.push(oneLine);
+        }
+    }
+}
+
 // alias some functions to make (compiled) code shorter
 const { round: mr, sin: ms, cos: mc, abs, sqrt } = Math;
 
@@ -845,6 +839,10 @@ class CanvasGradient_ {
          alpha: aColor.alpha,
       });
    }
+}
+
+function createScratchCanvas(width, height) {
+   return new CanvasRenderingContext2D_({}, width, height);
 }
 
 /**
@@ -1313,6 +1311,12 @@ class CanvasRenderingContext2D_ {
       return new CanvasPattern_();
    }
 }
+
+const __filename$1 = url.fileURLToPath((typeof document === 'undefined' ? require('u' + 'rl').pathToFileURL(__filename).href : (_documentCurrentScript && _documentCurrentScript.src || new URL('pdfparser.cjs', document.baseURI).href)));
+const __dirname$1 = path.dirname(__filename$1);
+
+const pkInfo = JSON.parse(fs.readFileSync(`${__dirname$1}/package.json`, 'utf8'));
+const _PARSER_SIG = `${pkInfo.name}@${pkInfo.version} [${pkInfo.homepage}]`;
 
 const kFBANotOverridable = 0x00000400; // indicates the field is read only by the user
 const kFBARequired = 0x00000010; // indicates the field is required
@@ -41903,7 +41907,7 @@ var CachedCanvases = (function CachedCanvasesClosure() {
         // reset canvas transform for emulated mozCurrentTransform, if needed
         canvasEntry.context.setTransform(1, 0, 0, 1, 0, 0);
       } else {
-        var canvas = createScratchCanvas(width, height);
+        var canvas = CanvasRenderingContext2D_(width, height);
         var ctx = canvas.getContext('2d');
         if (trackTransform) {
           addContextCurrentTransform(ctx);
@@ -44972,7 +44976,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
           var size = width * height;
           var rgbaLength = size * 4;
           var buf = new Uint8Array(size * components);
-          var tmpCanvas = createScratchCanvas(width, height);
+          var tmpCanvas = CanvasRenderingContext2D_(width, height);
           var tmpCtx = tmpCanvas.getContext('2d');
           tmpCtx.drawImage(img, 0, 0);
           var data = tmpCtx.getImageData(0, 0, width, height).data;
@@ -45304,11 +45308,6 @@ var InternalRenderTask = (function InternalRenderTaskClosure() {
   return InternalRenderTask;
 })();
 
-//////replacing HTML5 canvas with PDFCanvas (in-memory canvas)
-function createScratchCanvas$1(width, height) {
-   return new CanvasRenderingContext2D_({}, width, height);
-}
-
 // eval(_PDFJS_CODE);
 
 ////////////////////////////////start of helper classes
@@ -45410,7 +45409,7 @@ class PDFPageParser {
 
       this.renderingState = PDFPageParser.RenderingStates.RUNNING;
 
-      const canvas = createScratchCanvas$1(1, 1);
+      const canvas = CanvasRenderingContext2D_(1, 1);
       const ctx = canvas.getContext('2d');
 
       function pageViewDrawCallback(error) {

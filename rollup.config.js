@@ -1,5 +1,6 @@
-import nodeResolve from '@rollup/plugin-node-resolve';
 import replace from '@rollup/plugin-replace';
+import path from 'path';
+import inject from 'rollup-plugin-inject';
 import builtins from 'rollup-plugin-node-builtins';
 
 export default [
@@ -28,6 +29,9 @@ export default [
             delimiters: ['/', '/'],
          }),
          builtins(),
+         inject({
+            createScratchCanvas: path.resolve( 'lib/pdfcanvas.js' )
+         })
       ],
    },
 ];
