@@ -1842,7 +1842,9 @@ var NO_OPS_RANGE = PDFJS.NO_OPS_RANGE = [78, 79, 80, 81]; //range pairs, all ops
 // Use only for debugging purposes. This should not be used in any code that is
 // in mozilla master.
 var log = (function() {
-  if ('console' in globalScope && 'log' in globalScope['console']) {
+  var disableLogs = Boolean(Number(process?.env?.PDF2JSON_DISABLE_LOGS ?? "0"));
+
+  if (!disableLogs && 'console' in globalScope && 'log' in globalScope['console']) {
     return globalScope['console']['log'].bind(globalScope['console']);
   } else {
     return function nop() {
@@ -41907,7 +41909,7 @@ var CachedCanvases = (function CachedCanvasesClosure() {
         // reset canvas transform for emulated mozCurrentTransform, if needed
         canvasEntry.context.setTransform(1, 0, 0, 1, 0, 0);
       } else {
-        var canvas = CanvasRenderingContext2D_(width, height);
+        var canvas = createScratchCanvas(width, height);
         var ctx = canvas.getContext('2d');
         if (trackTransform) {
           addContextCurrentTransform(ctx);
@@ -44976,7 +44978,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
           var size = width * height;
           var rgbaLength = size * 4;
           var buf = new Uint8Array(size * components);
-          var tmpCanvas = CanvasRenderingContext2D_(width, height);
+          var tmpCanvas = createScratchCanvas(width, height);
           var tmpCtx = tmpCanvas.getContext('2d');
           tmpCtx.drawImage(img, 0, 0);
           var data = tmpCtx.getImageData(0, 0, width, height).data;
@@ -45409,7 +45411,7 @@ class PDFPageParser {
 
       this.renderingState = PDFPageParser.RenderingStates.RUNNING;
 
-      const canvas = CanvasRenderingContext2D_(1, 1);
+      const canvas = createScratchCanvas(1, 1);
       const ctx = canvas.getContext('2d');
 
       function pageViewDrawCallback(error) {

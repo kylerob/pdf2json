@@ -30,7 +30,7 @@ export default [
          }),
          builtins(),
          inject({
-            createScratchCanvas: path.resolve( 'lib/pdfcanvas.js' )
+            createScratchCanvas: [path.resolve( 'lib/pdfcanvas.js' ), 'createScratchCanvas']
          })
       ],
    },
