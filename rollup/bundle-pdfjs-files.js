@@ -40,9 +40,6 @@ const _pdfjsFiles = [
    'display/api.js',
 ];
 
-// const PDFJS = {};
-// const globalScope = { console };
-
 const baseDir = `${__dirname}/../base/`;
 const _baseCode = _pdfjsFiles.reduce(
    (preContent, fileName, idx, arr) =>
