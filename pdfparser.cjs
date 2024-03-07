@@ -11,6 +11,12 @@ var DOMParser = xmldom.DOMParser;
 var stream = require('stream');
 
 var _documentCurrentScript = typeof document !== 'undefined' ? document.currentScript : null;
+const __filename$1 = url.fileURLToPath((typeof document === 'undefined' ? require('u' + 'rl').pathToFileURL(__filename).href : (_documentCurrentScript && _documentCurrentScript.src || new URL('pdfparser.cjs', document.baseURI).href)));
+const __dirname$1 = path.dirname(__filename$1);
+
+const pkInfo = JSON.parse(fs.readFileSync(`${__dirname$1}/package.json`, 'utf8'));
+const _PARSER_SIG = `${pkInfo.name}@${pkInfo.version} [${pkInfo.homepage}]`;
+
 const kColors = [
     '#000000',		// 0
     '#ffffff',		// 1
@@ -202,34 +208,299 @@ class PDFUnit {
     }
 }
 
-class PDFFill{
-    // constructor
-    constructor(x, y, width, height, color) {
-        this.x = x;
-        this.y = y;
-        this.width = width;
-        this.height = height;
-        this.color = color;
-    }
+const kFBANotOverridable = 0x00000400; // indicates the field is read only by the user
+const kFBARequired = 0x00000010; // indicates the field is required
+const kMinHeight = 20;
 
-    processFill(targetData) {
-        //MQZ.07/29/2013: when color is not in color dictionary, set the original color (oc)
-        const clrId = PDFUnit.findColorIndex(this.color);
-        const colorObj = (clrId > 0 && clrId < PDFUnit.colorCount()) ? {clr: clrId} : {oc: this.color};
+class PDFField {
+    static tabIndex = 0;
 
-        const oneFill = {x:PDFUnit.toFormX(this.x),
-                       y:PDFUnit.toFormY(this.y),
-                       w:PDFUnit.toFormX(this.width),
-                       h:PDFUnit.toFormY(this.height),
-                       ...colorObj};
+    static isWidgetSupported(field) {
+        let retVal = false;
 
-        
-        if (oneFill.w < 2 && oneFill.h < 2) {
-            nodeUtil.p2jinfo("Skipped: tiny fill: " + oneFill.w + " x " + oneFill.h);
-            return; //skip short thick lines, like PA SPP lines behinds checkbox
+        switch(field.fieldType) {
+            case 'Tx': retVal = true; break; //text input
+            case 'Btn':
+                if (field.fieldFlags & 32768) {
+                    field.fieldType = 'Rd'; //radio button
+                }
+                else if (field.fieldFlags & 65536) {
+                    field.fieldType = 'Btn'; //push button
+                }
+                else {
+                    field.fieldType = 'Cb'; //checkbox
+                }
+                retVal = true;
+                break;
+            case 'Ch': retVal = true; break; //drop down
+            case 'Sig': retVal = true; break; //signature
+            default:
+                nodeUtil.p2jwarn("Unsupported: field.fieldType of " + field.fieldType);
+                break;
         }
 
-        targetData.Fills.push(oneFill);
+        return retVal;
+    }
+
+    static isFormElement(field) {
+        let retVal = false;
+        switch(field.subtype) {
+            case 'Widget': retVal = PDFField.isWidgetSupported(field); break;
+            default:
+                nodeUtil.p2jwarn("Unsupported: field.type of " + field.subtype);
+                break;
+        }
+        return retVal;
+    }
+
+    // constructor
+    constructor(field, viewport, Fields, Boxsets) {
+        this.field = field;
+        this.viewport = viewport;
+        this.Fields = Fields;
+        this.Boxsets = Boxsets;
+    }
+
+    // Normalize rectangle rect=[x1, y1, x2, y2] so that (x1,y1) < (x2,y2)
+    // For coordinate systems whose origin lies in the bottom-left, this
+    // means normalization to (BL,TR) ordering. For systems with origin in the
+    // top-left, this means (TL,BR) ordering.
+    static #normalizeRect(rect) {
+        const r = rect.slice(0); // clone rect
+        if (rect[0] > rect[2]) {
+            r[0] = rect[2];
+            r[2] = rect[0];
+        }
+        if (rect[1] > rect[3]) {
+            r[1] = rect[3];
+            r[3] = rect[1];
+        }
+        return r;
+    }
+
+    #getFieldPosition(field) {
+        let viewPort = this.viewport;
+        let fieldRect = viewPort.convertToViewportRectangle(field.rect);
+        let rect = PDFField.#normalizeRect(fieldRect);
+
+        let height = rect[3] - rect[1];
+        if (field.fieldType === 'Tx') {
+            if (height > kMinHeight + 2) {
+                rect[1] += 2;
+                height -= 2;
+            }
+        }
+        else if (field.fieldType !== 'Ch') { //checkbox, radio button, and link button
+            rect[1] -= 3;
+        }
+
+        height = (height >= kMinHeight) ? height : kMinHeight;
+
+        return {
+            x: PDFUnit.toFormX(rect[0]),
+            y: PDFUnit.toFormY(rect[1]),
+            w: PDFUnit.toFormX(rect[2] - rect[0]),
+            h: PDFUnit.toFormY(height)
+        };
+    }
+
+    #getFieldBaseData(field) {
+        let attributeMask = 0;
+        //PDF Spec p.676 TABLE 8.70 Field flags common to all field types
+        if (field.fieldFlags & 0x00000001) {
+            attributeMask |= kFBANotOverridable;
+        }
+        if (field.fieldFlags & 0x00000002) {
+            attributeMask |= kFBARequired;
+        }
+
+        let anData = {
+            id: { Id: field.fullName, EN: 0},
+            TI: field.TI,
+            AM: attributeMask
+        };
+        //PDF Spec p.675: add TU (AlternativeText) fields to provide accessibility info
+        if (field.alternativeText && field.alternativeText.length > 1) {
+            anData.TU = field.alternativeText;
+        }
+
+        if (field.alternativeID && field.alternativeID.length > 1) {
+            anData.TM = field.alternativeID;
+        }
+
+        return Object.assign(anData, this.#getFieldPosition(field));
+    }
+
+    #addAlpha(field) {
+        const anData = Object.assign({
+            style: 48,
+            T: {
+                Name: field.TName || "alpha",
+                TypeInfo: {}
+            }
+        }, this.#getFieldBaseData(field));
+
+        if (field.MV) { //field attributes: arbitrary mask value
+            anData.MV = field.MV;
+        }
+        if (field.fieldValue) {
+            anData.V = field.fieldValue; //read-only field value, like "self-prepared"
+        }
+
+        this.Fields.push(anData);
+    }
+
+    #addCheckBox(box) {
+        const anData = Object.assign({
+            style: 48,
+            T: {
+                Name: "box",
+                TypeInfo: {}
+            }
+        }, this.#getFieldBaseData(box));
+        if(box.fieldValue) {
+            anData.checked = box.fieldValue !== 'Off';
+          }
+
+        this.Boxsets.push({boxes:[anData]});
+    }
+
+    #addRadioButton(box) {
+        const anData = Object.assign({
+            style: 48,
+            T: {
+                Name: "box",
+                TypeInfo: {}
+            }
+        }, this.#getFieldBaseData(box));
+
+        anData.id.Id = box.value;
+        if ('checked' in box) {
+            anData.checked = box.checked;
+        }
+
+        const rdGroup = this.Boxsets.filter(boxset => ('id' in boxset) && ('Id' in boxset.id) && (boxset.id.Id === box.fullName))[0];
+        if ((!!rdGroup) && ('boxes' in rdGroup)) {
+            rdGroup.boxes.push(anData);
+        }
+        else {
+            this.Boxsets.push({boxes:[anData], id: { Id: box.fullName, EN: 0}});
+        }
+    }
+
+    #addLinkButton(field) {
+        const anData = Object.assign({
+            style: 48,
+            T: {
+                Name: "link"
+            },
+            FL: {
+                form: {Id: field.FL}
+            }
+        }, this.#getFieldBaseData(field));
+
+        this.Fields.push(anData);
+    }
+
+    #addSelect(field) {
+        const anData = Object.assign({
+            style: 48,
+            T: {
+                Name: "alpha",
+                TypeInfo: {}
+            }
+        }, this.#getFieldBaseData(field));
+
+        anData.w -= 0.5; //adjust combobox width
+        anData.PL = {V: [], D: []};
+        field.value.forEach( (ele, idx) => {
+            if (Array.isArray(ele)) {
+                anData.PL.D.push(ele[0]);
+                anData.PL.V.push(ele[1]);
+            } else {
+                anData.PL.D.push(ele);
+                anData.PL.V.push(ele);
+            }
+        });
+		
+		// add field value to the object 
+		if (field.fieldValue) {
+			anData.V = field.fieldValue; 
+		}
+        this.Fields.push(anData);
+    };
+
+    #addSignature(field) {
+        const anData = Object.assign({
+            style: 48,
+            T: {
+                Name: "signature",
+                TypeInfo: {}
+            }
+        }, this.#getFieldBaseData(field));
+
+        if (field.Sig) {
+            anData.Sig = {};
+            if (field.Sig.Name) anData.Sig.Name = field.Sig.Name;
+            if (field.Sig.M) anData.Sig.M = PDFUnit.dateToIso8601(field.Sig.M);
+            if (field.Sig.Location) anData.Sig.Location = field.Sig.Location;
+            if (field.Sig.Reason) anData.Sig.Reason = field.Sig.Reason;
+            if (field.Sig.ContactInfo) anData.Sig.ContactInfo = field.Sig.ContactInfo;
+        }
+
+        this.Fields.push(anData);
+    }
+
+    // public instance methods
+    processField() {
+        this.field.TI = PDFField.tabIndex++;
+
+        switch(this.field.fieldType) {
+            case 'Tx': this.#addAlpha(this.field); break;
+            case 'Cb': this.#addCheckBox(this.field); break;
+            case 'Rd': this.#addRadioButton(this.field);break;
+            case 'Btn':this.#addLinkButton(this.field); break;
+            case 'Ch': this.#addSelect(this.field); break;
+            case 'Sig': this.#addSignature(this.field); break;
+        }
+
+        this.clean();
+    }
+
+    clean() {
+        delete this.field;
+        delete this.viewport;
+        delete this.Fields;
+        delete this.Boxsets;
+    }
+
+    //static public method to generate fieldsType object based on parser result
+    static getAllFieldsTypes(data) {
+        const isFieldReadOnly = field => {
+            return (field.AM & kFBANotOverridable) ? true : false;
+        };
+
+        const getFieldBase = field => {
+            return {id: field.id.Id, type: field.T.Name, calc: isFieldReadOnly(field), value: field.V || ""};
+        };
+
+        let retVal = [];
+        data.Pages.forEach( page => {
+            page.Boxsets.forEach( boxsets => {
+                if (boxsets.boxes.length > 1) { //radio button
+                    boxsets.boxes.forEach( box => {
+                        retVal.push({id: boxsets.id.Id, type: "radio", calc: isFieldReadOnly(box), value: box.id.Id});
+                    });
+                }
+                else { //checkbox
+                    retVal.push(getFieldBase(boxsets.boxes[0]));
+                }
+            });
+
+            page.Fields.forEach(field => retVal.push(getFieldBase(field)));
+            
+        });
+        return retVal;
     }
 }
 
@@ -620,6 +891,142 @@ class PDFFont {
    }
 }
 
+class PTIXmlParser {
+    xmlData = null;
+	ptiPageArray = [];
+
+	// constructor
+	constructor() {
+        this.xmlData = null;
+        this.ptiPageArray = [];
+    }
+	
+	parseXml(filePath, callback) {
+		fs.readFile(filePath, 'utf8', (err, data) => {
+			if (err) {
+                callback(err);
+			}
+			else {
+				this.xmlData = data;
+
+				var parser = new xmldom.DOMParser();
+				var dom = parser.parseFromString(this.xmlData);
+				var root = dom.documentElement;
+
+				var xmlFields = root.getElementsByTagName("field");
+				var fields = [];
+
+				for(var i=0;i<xmlFields.length;i++){
+					var id = xmlFields[i].getAttribute('id');
+					var xPos = xmlFields[i].getAttribute('x');
+					var yPos = xmlFields[i].getAttribute('y');
+					var width = xmlFields[i].getAttribute('width');
+					var height = xmlFields[i].getAttribute('height');
+					var type = xmlFields[i].getAttribute('xsi:type');
+					var page = xmlFields[i].getAttribute('page');
+					var fontName = xmlFields[i].getAttribute('fontName');
+					var fontSize = xmlFields[i].getAttribute('fontSize');
+
+					var item = {};
+					
+					var rectLeft = parseInt(xPos) - 21; //was 23.5
+					var rectTop = parseInt(yPos) - 20;//was 23
+					var rectRight = parseInt(rectLeft) + parseInt(width) - 4;
+					var rectBottom = parseInt(rectTop) + parseInt(height) - 4;
+					
+					item.fieldType="Tx";
+					if (type == "Boolean") {
+						item.fieldType="Btn";
+					}
+					else  if (type=="SSN" ||  type=="Phone" || type=="zip") {
+						item.TName = type.toLowerCase();
+					}
+					item.alternativeText = "";
+					item.fullName = id;
+					item.fontSize = fontSize;
+					item.subtype = "Widget";
+
+					item.rect = [rectLeft, rectTop, rectRight, rectBottom];;
+
+					fields.push(item);
+					
+					this.ptiPageArray[parseInt(page)]=fields;
+				}
+				
+			}
+			callback();
+		});
+	}
+
+	getFields(pageNum) {
+		return this.ptiPageArray[pageNum];
+	}
+}
+
+let PDFImage$1 = class PDFImage {
+	#_src = '';
+	#_onload = null;
+
+	set onload(val) {
+		this.#_onload = typeof val === 'function' ? val : null;
+	}
+
+	get onload() {
+		return this.#_onload;
+	}
+
+	set src(val) {
+		this.#_src = val;
+		if (this.#_onload) this.#_onload();
+	}
+
+	get src() {
+		return this.#_src;
+	}
+
+    btoa(val) {
+        if (typeof window === 'undefined') {
+            return (new Buffer.from(val, 'ascii')).toString('base64');
+        }
+        else if (typeof window.btoa === 'function')
+            return window.btoa(val);
+
+        return "";
+    }
+
+};
+
+class PDFFill{
+    // constructor
+    constructor(x, y, width, height, color) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+        this.color = color;
+    }
+
+    processFill(targetData) {
+        //MQZ.07/29/2013: when color is not in color dictionary, set the original color (oc)
+        const clrId = PDFUnit.findColorIndex(this.color);
+        const colorObj = (clrId > 0 && clrId < PDFUnit.colorCount()) ? {clr: clrId} : {oc: this.color};
+
+        const oneFill = {x:PDFUnit.toFormX(this.x),
+                       y:PDFUnit.toFormY(this.y),
+                       w:PDFUnit.toFormX(this.width),
+                       h:PDFUnit.toFormY(this.height),
+                       ...colorObj};
+
+        
+        if (oneFill.w < 2 && oneFill.h < 2) {
+            nodeUtil.p2jinfo("Skipped: tiny fill: " + oneFill.w + " x " + oneFill.h);
+            return; //skip short thick lines, like PA SPP lines behinds checkbox
+        }
+
+        targetData.Fills.push(oneFill);
+    }
+}
+
 class PDFLine {
     constructor(x1, y1, x2, y2, lineWidth, color, dashed) {
         this.x1 = x1;
@@ -841,6 +1248,7 @@ class CanvasGradient_ {
    }
 }
 
+//////replacing HTML5 canvas with PDFCanvas (in-memory canvas)
 function createScratchCanvas(width, height) {
    return new CanvasRenderingContext2D_({}, width, height);
 }
@@ -1310,380 +1718,6 @@ class CanvasRenderingContext2D_ {
    createPattern() {
       return new CanvasPattern_();
    }
-}
-
-const __filename$1 = url.fileURLToPath((typeof document === 'undefined' ? require('u' + 'rl').pathToFileURL(__filename).href : (_documentCurrentScript && _documentCurrentScript.src || new URL('pdfparser.cjs', document.baseURI).href)));
-const __dirname$1 = path.dirname(__filename$1);
-
-const pkInfo = JSON.parse(fs.readFileSync(`${__dirname$1}/package.json`, 'utf8'));
-const _PARSER_SIG = `${pkInfo.name}@${pkInfo.version} [${pkInfo.homepage}]`;
-
-const kFBANotOverridable = 0x00000400; // indicates the field is read only by the user
-const kFBARequired = 0x00000010; // indicates the field is required
-const kMinHeight = 20;
-
-class PDFField {
-    static tabIndex = 0;
-
-    static isWidgetSupported(field) {
-        let retVal = false;
-
-        switch(field.fieldType) {
-            case 'Tx': retVal = true; break; //text input
-            case 'Btn':
-                if (field.fieldFlags & 32768) {
-                    field.fieldType = 'Rd'; //radio button
-                }
-                else if (field.fieldFlags & 65536) {
-                    field.fieldType = 'Btn'; //push button
-                }
-                else {
-                    field.fieldType = 'Cb'; //checkbox
-                }
-                retVal = true;
-                break;
-            case 'Ch': retVal = true; break; //drop down
-            case 'Sig': retVal = true; break; //signature
-            default:
-                nodeUtil.p2jwarn("Unsupported: field.fieldType of " + field.fieldType);
-                break;
-        }
-
-        return retVal;
-    }
-
-    static isFormElement(field) {
-        let retVal = false;
-        switch(field.subtype) {
-            case 'Widget': retVal = PDFField.isWidgetSupported(field); break;
-            default:
-                nodeUtil.p2jwarn("Unsupported: field.type of " + field.subtype);
-                break;
-        }
-        return retVal;
-    }
-
-    // constructor
-    constructor(field, viewport, Fields, Boxsets) {
-        this.field = field;
-        this.viewport = viewport;
-        this.Fields = Fields;
-        this.Boxsets = Boxsets;
-    }
-
-    // Normalize rectangle rect=[x1, y1, x2, y2] so that (x1,y1) < (x2,y2)
-    // For coordinate systems whose origin lies in the bottom-left, this
-    // means normalization to (BL,TR) ordering. For systems with origin in the
-    // top-left, this means (TL,BR) ordering.
-    static #normalizeRect(rect) {
-        const r = rect.slice(0); // clone rect
-        if (rect[0] > rect[2]) {
-            r[0] = rect[2];
-            r[2] = rect[0];
-        }
-        if (rect[1] > rect[3]) {
-            r[1] = rect[3];
-            r[3] = rect[1];
-        }
-        return r;
-    }
-
-    #getFieldPosition(field) {
-        let viewPort = this.viewport;
-        let fieldRect = viewPort.convertToViewportRectangle(field.rect);
-        let rect = PDFField.#normalizeRect(fieldRect);
-
-        let height = rect[3] - rect[1];
-        if (field.fieldType === 'Tx') {
-            if (height > kMinHeight + 2) {
-                rect[1] += 2;
-                height -= 2;
-            }
-        }
-        else if (field.fieldType !== 'Ch') { //checkbox, radio button, and link button
-            rect[1] -= 3;
-        }
-
-        height = (height >= kMinHeight) ? height : kMinHeight;
-
-        return {
-            x: PDFUnit.toFormX(rect[0]),
-            y: PDFUnit.toFormY(rect[1]),
-            w: PDFUnit.toFormX(rect[2] - rect[0]),
-            h: PDFUnit.toFormY(height)
-        };
-    }
-
-    #getFieldBaseData(field) {
-        let attributeMask = 0;
-        //PDF Spec p.676 TABLE 8.70 Field flags common to all field types
-        if (field.fieldFlags & 0x00000001) {
-            attributeMask |= kFBANotOverridable;
-        }
-        if (field.fieldFlags & 0x00000002) {
-            attributeMask |= kFBARequired;
-        }
-
-        let anData = {
-            id: { Id: field.fullName, EN: 0},
-            TI: field.TI,
-            AM: attributeMask
-        };
-        //PDF Spec p.675: add TU (AlternativeText) fields to provide accessibility info
-        if (field.alternativeText && field.alternativeText.length > 1) {
-            anData.TU = field.alternativeText;
-        }
-
-        if (field.alternativeID && field.alternativeID.length > 1) {
-            anData.TM = field.alternativeID;
-        }
-
-        return Object.assign(anData, this.#getFieldPosition(field));
-    }
-
-    #addAlpha(field) {
-        const anData = Object.assign({
-            style: 48,
-            T: {
-                Name: field.TName || "alpha",
-                TypeInfo: {}
-            }
-        }, this.#getFieldBaseData(field));
-
-        if (field.MV) { //field attributes: arbitrary mask value
-            anData.MV = field.MV;
-        }
-        if (field.fieldValue) {
-            anData.V = field.fieldValue; //read-only field value, like "self-prepared"
-        }
-
-        this.Fields.push(anData);
-    }
-
-    #addCheckBox(box) {
-        const anData = Object.assign({
-            style: 48,
-            T: {
-                Name: "box",
-                TypeInfo: {}
-            }
-        }, this.#getFieldBaseData(box));
-        if(box.fieldValue) {
-            anData.checked = box.fieldValue !== 'Off';
-          }
-
-        this.Boxsets.push({boxes:[anData]});
-    }
-
-    #addRadioButton(box) {
-        const anData = Object.assign({
-            style: 48,
-            T: {
-                Name: "box",
-                TypeInfo: {}
-            }
-        }, this.#getFieldBaseData(box));
-
-        anData.id.Id = box.value;
-        if ('checked' in box) {
-            anData.checked = box.checked;
-        }
-
-        const rdGroup = this.Boxsets.filter(boxset => ('id' in boxset) && ('Id' in boxset.id) && (boxset.id.Id === box.fullName))[0];
-        if ((!!rdGroup) && ('boxes' in rdGroup)) {
-            rdGroup.boxes.push(anData);
-        }
-        else {
-            this.Boxsets.push({boxes:[anData], id: { Id: box.fullName, EN: 0}});
-        }
-    }
-
-    #addLinkButton(field) {
-        const anData = Object.assign({
-            style: 48,
-            T: {
-                Name: "link"
-            },
-            FL: {
-                form: {Id: field.FL}
-            }
-        }, this.#getFieldBaseData(field));
-
-        this.Fields.push(anData);
-    }
-
-    #addSelect(field) {
-        const anData = Object.assign({
-            style: 48,
-            T: {
-                Name: "alpha",
-                TypeInfo: {}
-            }
-        }, this.#getFieldBaseData(field));
-
-        anData.w -= 0.5; //adjust combobox width
-        anData.PL = {V: [], D: []};
-        field.value.forEach( (ele, idx) => {
-            if (Array.isArray(ele)) {
-                anData.PL.D.push(ele[0]);
-                anData.PL.V.push(ele[1]);
-            } else {
-                anData.PL.D.push(ele);
-                anData.PL.V.push(ele);
-            }
-        });
-		
-		// add field value to the object 
-		if (field.fieldValue) {
-			anData.V = field.fieldValue; 
-		}
-        this.Fields.push(anData);
-    };
-
-    #addSignature(field) {
-        const anData = Object.assign({
-            style: 48,
-            T: {
-                Name: "signature",
-                TypeInfo: {}
-            }
-        }, this.#getFieldBaseData(field));
-
-        if (field.Sig) {
-            anData.Sig = {};
-            if (field.Sig.Name) anData.Sig.Name = field.Sig.Name;
-            if (field.Sig.M) anData.Sig.M = PDFUnit.dateToIso8601(field.Sig.M);
-            if (field.Sig.Location) anData.Sig.Location = field.Sig.Location;
-            if (field.Sig.Reason) anData.Sig.Reason = field.Sig.Reason;
-            if (field.Sig.ContactInfo) anData.Sig.ContactInfo = field.Sig.ContactInfo;
-        }
-
-        this.Fields.push(anData);
-    }
-
-    // public instance methods
-    processField() {
-        this.field.TI = PDFField.tabIndex++;
-
-        switch(this.field.fieldType) {
-            case 'Tx': this.#addAlpha(this.field); break;
-            case 'Cb': this.#addCheckBox(this.field); break;
-            case 'Rd': this.#addRadioButton(this.field);break;
-            case 'Btn':this.#addLinkButton(this.field); break;
-            case 'Ch': this.#addSelect(this.field); break;
-            case 'Sig': this.#addSignature(this.field); break;
-        }
-
-        this.clean();
-    }
-
-    clean() {
-        delete this.field;
-        delete this.viewport;
-        delete this.Fields;
-        delete this.Boxsets;
-    }
-
-    //static public method to generate fieldsType object based on parser result
-    static getAllFieldsTypes(data) {
-        const isFieldReadOnly = field => {
-            return (field.AM & kFBANotOverridable) ? true : false;
-        };
-
-        const getFieldBase = field => {
-            return {id: field.id.Id, type: field.T.Name, calc: isFieldReadOnly(field), value: field.V || ""};
-        };
-
-        let retVal = [];
-        data.Pages.forEach( page => {
-            page.Boxsets.forEach( boxsets => {
-                if (boxsets.boxes.length > 1) { //radio button
-                    boxsets.boxes.forEach( box => {
-                        retVal.push({id: boxsets.id.Id, type: "radio", calc: isFieldReadOnly(box), value: box.id.Id});
-                    });
-                }
-                else { //checkbox
-                    retVal.push(getFieldBase(boxsets.boxes[0]));
-                }
-            });
-
-            page.Fields.forEach(field => retVal.push(getFieldBase(field)));
-            
-        });
-        return retVal;
-    }
-}
-
-class PTIXmlParser {
-    xmlData = null;
-	ptiPageArray = [];
-
-	// constructor
-	constructor() {
-        this.xmlData = null;
-        this.ptiPageArray = [];
-    }
-	
-	parseXml(filePath, callback) {
-		fs.readFile(filePath, 'utf8', (err, data) => {
-			if (err) {
-                callback(err);
-			}
-			else {
-				this.xmlData = data;
-
-				var parser = new xmldom.DOMParser();
-				var dom = parser.parseFromString(this.xmlData);
-				var root = dom.documentElement;
-
-				var xmlFields = root.getElementsByTagName("field");
-				var fields = [];
-
-				for(var i=0;i<xmlFields.length;i++){
-					var id = xmlFields[i].getAttribute('id');
-					var xPos = xmlFields[i].getAttribute('x');
-					var yPos = xmlFields[i].getAttribute('y');
-					var width = xmlFields[i].getAttribute('width');
-					var height = xmlFields[i].getAttribute('height');
-					var type = xmlFields[i].getAttribute('xsi:type');
-					var page = xmlFields[i].getAttribute('page');
-					var fontName = xmlFields[i].getAttribute('fontName');
-					var fontSize = xmlFields[i].getAttribute('fontSize');
-
-					var item = {};
-					
-					var rectLeft = parseInt(xPos) - 21; //was 23.5
-					var rectTop = parseInt(yPos) - 20;//was 23
-					var rectRight = parseInt(rectLeft) + parseInt(width) - 4;
-					var rectBottom = parseInt(rectTop) + parseInt(height) - 4;
-					
-					item.fieldType="Tx";
-					if (type == "Boolean") {
-						item.fieldType="Btn";
-					}
-					else  if (type=="SSN" ||  type=="Phone" || type=="zip") {
-						item.TName = type.toLowerCase();
-					}
-					item.alternativeText = "";
-					item.fullName = id;
-					item.fontSize = fontSize;
-					item.subtype = "Widget";
-
-					item.rect = [rectLeft, rectTop, rectRight, rectBottom];;
-
-					fields.push(item);
-					
-					this.ptiPageArray[parseInt(page)]=fields;
-				}
-				
-			}
-			callback();
-		});
-	}
-
-	getFields(pageNum) {
-		return this.ptiPageArray[pageNum];
-	}
 }
 
 const PDFJS = {};
@@ -2906,7 +2940,7 @@ MessageHandler.prototype = {
 };
 
 function loadJpegStream(id, imageUrl, objs) {
-  var img = new Image();
+  var img = new PDFImage$1();
   img.onload = (function loadJpegStream_onloadClosure() {
     objs.resolve(id, img);
   });
@@ -44971,7 +45005,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
         if (components != 3 && components != 1)
           error('Only 3 component or 1 component can be returned');
 
-        var img = new Image();
+        var img = new PDFImage$1();
         img.onload = (function messageHandler_onloadClosure() {
           var width = img.width;
           var height = img.height;
@@ -45310,8 +45344,6 @@ var InternalRenderTask = (function InternalRenderTaskClosure() {
   return InternalRenderTask;
 })();
 
-// eval(_PDFJS_CODE);
-
 ////////////////////////////////start of helper classes
 class PDFPageParser {
    //static
@@ -45647,7 +45679,7 @@ class PDFJSClass extends events.EventEmitter {
          }
          retVal +=
             '\r\n----------------Page (' +
-            index +
+            (index + 1) +
             ') Break----------------\r\n';
       });
 

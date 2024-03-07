@@ -1,5 +1,6 @@
 
   import nodeUtil from 'util';
+  import Image from './lib/pdfimage.js';
   export const PDFJS = {};
   const globalScope = { console };
   /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
